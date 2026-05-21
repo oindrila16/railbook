@@ -1,0 +1,568 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply m-0 min-h-screen font-sans text-[15px] leading-relaxed text-ink;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+    background: linear-gradient(180deg, #ffffff 0%, #fafafa 50%, #f5f5f7 100%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading text-ink;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  ::selection {
+    @apply bg-ink/10 text-ink;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .page-container {
+    @apply mx-auto w-full max-w-6xl px-6 sm:px-10 lg:max-w-[76rem] lg:px-12;
+  }
+
+  .page-section {
+    @apply py-14 sm:py-20 lg:py-24;
+  }
+
+  .page-section-sm {
+    @apply py-10 sm:py-14 lg:py-16;
+  }
+
+  .section-spacing {
+    @apply py-20 sm:py-28 lg:py-32;
+  }
+
+  .section-spacing-sm {
+    @apply py-14 sm:py-20 lg:py-24;
+  }
+
+  .content-stack {
+    @apply flex flex-col gap-8 sm:gap-10 lg:gap-12;
+  }
+
+  .content-stack-sm {
+    @apply flex flex-col gap-5 sm:gap-6;
+  }
+
+  .heading-display {
+    @apply font-heading text-display-sm font-semibold tracking-tight text-ink sm:text-display;
+  }
+
+  .heading-section {
+    @apply font-heading text-[1.625rem] font-semibold tracking-tight text-ink sm:text-[1.875rem];
+  }
+
+  .heading-card {
+    @apply font-heading text-lg font-semibold tracking-tight text-ink sm:text-xl;
+  }
+
+  .text-body {
+    @apply text-[15px] leading-[1.7] text-ink-muted;
+  }
+
+  .text-caption {
+    @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted;
+  }
+
+  .font-brand {
+    @apply font-heading font-semibold tracking-tight text-ink;
+  }
+
+  .card-surface {
+    @apply rounded-4xl border border-line/80 bg-paper/90 shadow-card backdrop-blur-xl
+      transition-[box-shadow,border-color,transform] duration-500 ease-smooth;
+  }
+
+  .card-surface-interactive {
+    @apply card-surface hover:border-line-dark hover:shadow-soft;
+  }
+
+  .card-surface-elevated {
+    @apply card-surface shadow-soft;
+  }
+
+  /* —— Search card (hero booking widget) —— */
+  .search-card {
+    @apply relative z-[5] min-w-0 overflow-visible rounded-[1.75rem] border border-line/80 bg-paper/95 shadow-soft backdrop-blur-sm;
+  }
+
+  .search-card--compact {
+    @apply rounded-3xl shadow-card;
+  }
+
+  .search-tabs {
+    @apply flex flex-wrap gap-2 border-b border-line/60 bg-paper-muted/50 px-4 py-4 sm:gap-2.5 sm:px-6 sm:py-5;
+  }
+
+  .search-tab {
+    @apply relative z-10 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-ink-muted
+      transition-colors duration-300 hover:bg-paper/80 hover:text-ink;
+  }
+
+  .search-tab--active {
+    @apply text-paper;
+  }
+
+  .search-tab-pill {
+    @apply absolute inset-0 rounded-full bg-ink shadow-card;
+  }
+
+  .search-tab-icon {
+    @apply relative z-10;
+  }
+
+  .search-tab-label {
+    @apply relative z-10;
+  }
+
+  .search-card-body {
+    @apply px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7;
+  }
+
+  .search-form {
+    @apply flex flex-col gap-5;
+  }
+
+  .search-fields-shell {
+    @apply min-w-0 w-full rounded-3xl border border-line/70 bg-paper-muted/40 p-3 sm:p-4;
+  }
+
+  .search-form-grid {
+    @apply grid min-w-0 gap-3;
+  }
+
+  @media (min-width: 640px) {
+    .search-form-grid {
+      @apply grid-cols-2;
+    }
+  }
+
+  /* 1024–1279px: stay 2-column — avoids clipped Passenger / Class */
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .search-form-grid {
+      @apply grid-cols-2;
+    }
+
+    .search-swap-wrap {
+      @apply col-span-2;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .search-form-grid {
+      @apply grid-flow-dense gap-3;
+      grid-template-columns:
+        minmax(0, 1.4fr)
+        auto
+        minmax(0, 1.4fr)
+        minmax(0, 1.1fr)
+        minmax(0, 0.9fr)
+        minmax(0, 0.95fr);
+    }
+  }
+
+  .search-field-tile {
+    @apply relative flex min-w-0 flex-col justify-center rounded-2xl border border-line/50 bg-paper px-4 py-4
+      shadow-inner transition-[background-color,border-color,box-shadow] duration-300
+      hover:border-line-dark hover:shadow-card;
+  }
+
+  .search-field-tile select {
+    touch-action: manipulation;
+  }
+
+  .search-field-label {
+    @apply text-xs font-semibold tracking-wide text-ink-muted;
+  }
+
+  .search-swap-wrap {
+    @apply flex items-center justify-center py-1 sm:col-span-2 lg:col-span-1 lg:py-0;
+  }
+
+  .search-swap-btn {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line/90 bg-paper
+      text-ink-muted shadow-inner transition-all duration-300
+      hover:border-line-dark hover:bg-paper-muted hover:text-ink-soft;
+  }
+
+  .search-date-input {
+    @apply max-w-full text-sm font-semibold sm:text-[15px];
+  }
+
+  .search-date-input::-webkit-calendar-picker-indicator {
+    margin-left: 0.25rem;
+    cursor: pointer;
+    opacity: 0.55;
+  }
+
+  .search-date-hint {
+    @apply mt-1.5 text-xs font-medium text-ink-muted;
+  }
+
+  .btn-search {
+    @apply inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-ink px-6 py-3.5 font-sans text-base font-semibold text-paper
+      shadow-card transition-all duration-400 ease-out
+      hover:bg-ink-soft hover:shadow-soft hover:-translate-y-px
+      active:translate-y-0 active:scale-[0.99]
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* Legacy cell class (seat availability panel) */
+  .search-field-cell {
+    @apply flex min-w-0 flex-col justify-center px-5 py-5 sm:px-6 sm:py-6;
+  }
+
+  @media (min-width: 1024px) {
+    .search-form-grid--four {
+      grid-template-columns:
+        minmax(12rem, 1.5fr)
+        minmax(12rem, 1.5fr)
+        minmax(10rem, 1.2fr)
+        minmax(9rem, 1fr);
+    }
+  }
+
+  .label-field {
+    @apply mb-2.5 block text-caption;
+  }
+
+  .input-field {
+    @apply w-full rounded-2xl border border-line/90 bg-paper px-4 py-3.5 font-sans text-[15px] text-ink shadow-inner
+      outline-none transition-all duration-400 ease-smooth
+      placeholder:text-ink-faint
+      hover:border-line-dark
+      focus:border-ink/30 focus:ring-4 focus:ring-ink/[0.05];
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-2xl bg-ink px-6 py-3.5 font-sans text-sm font-semibold text-paper
+      shadow-card transition-all duration-400 ease-out
+      hover:bg-ink-soft hover:shadow-soft hover:-translate-y-px
+      active:translate-y-0 active:scale-[0.98]
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-line-dark bg-paper px-6 py-3.5 font-sans text-sm font-semibold text-ink
+      transition-all duration-400 ease-out
+      hover:border-ink/20 hover:bg-paper-muted hover:-translate-y-px
+      active:translate-y-0 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-2xl px-4 py-2.5 text-sm font-medium text-ink-muted
+      transition-all duration-300 ease-smooth hover:bg-paper-muted hover:text-ink;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full bg-paper-muted px-3 py-1 text-xs font-medium text-ink-muted;
+  }
+
+  .badge-outline {
+    @apply inline-flex items-center rounded-full border border-line/90 px-3 py-1 text-xs font-medium text-ink-muted;
+  }
+
+  .badge-accent {
+    @apply inline-flex items-center rounded-full bg-accent-muted px-3 py-1 text-xs font-medium text-accent;
+  }
+
+  .divider-soft {
+    @apply border-t border-line/70;
+  }
+
+  .link-subtle {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted transition-colors duration-300
+      hover:text-ink;
+  }
+
+  /* —— Live support chat —— */
+  .chat-widget {
+    @apply fixed bottom-5 right-5 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6;
+  }
+
+  .chat-fab {
+    @apply flex h-14 w-14 items-center justify-center rounded-full bg-ink text-paper shadow-soft
+      transition-shadow duration-300 hover:bg-ink-soft hover:shadow-lift;
+  }
+
+  .chat-panel {
+    @apply flex w-[min(100vw-2rem,22rem)] flex-col overflow-hidden rounded-3xl border border-line/80
+      bg-paper/95 shadow-lift backdrop-blur-xl sm:w-[24rem];
+    max-height: min(32rem, calc(100vh - 6rem));
+  }
+
+  .chat-panel-header {
+    @apply flex items-center justify-between gap-3 border-b border-line/60 bg-paper-muted/50 px-4 py-3.5;
+  }
+
+  .chat-panel-avatar {
+    @apply flex h-10 w-10 items-center justify-center rounded-2xl bg-paper shadow-inner;
+  }
+
+  .chat-panel-close {
+    @apply flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors
+      hover:bg-paper-muted hover:text-ink-soft;
+  }
+
+  .chat-panel-messages {
+    @apply flex max-h-72 flex-col gap-3 overflow-y-auto px-4 py-4 sm:max-h-80;
+  }
+
+  .chat-msg {
+    @apply flex max-w-[92%] flex-col gap-1;
+  }
+
+  .chat-msg--user {
+    @apply ml-auto items-end;
+  }
+
+  .chat-msg--bot {
+    @apply mr-auto items-start;
+  }
+
+  .chat-msg-bubble {
+    @apply rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed;
+  }
+
+  .chat-msg--user .chat-msg-bubble {
+    @apply rounded-br-md bg-ink text-paper;
+  }
+
+  .chat-msg--bot .chat-msg-bubble {
+    @apply rounded-bl-md border border-line/70 bg-paper-muted/80 text-ink;
+  }
+
+  .chat-msg-time {
+    @apply px-1 text-[10px] text-ink-faint;
+  }
+
+  .chat-typing {
+    @apply flex gap-1 rounded-2xl rounded-bl-md border border-line/70 bg-paper-muted/80 px-4 py-3.5;
+  }
+
+  .chat-typing span {
+    @apply h-2 w-2 animate-pulse rounded-full bg-ink-faint/60;
+  }
+
+  .chat-typing span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+
+  .chat-typing span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .chat-error {
+    @apply rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700;
+  }
+
+  .chat-suggestions {
+    @apply flex flex-wrap gap-2 border-t border-line/50 px-3 py-2.5;
+  }
+
+  .chat-suggestion-chip {
+    @apply rounded-full border border-line/80 bg-paper px-3 py-1.5 text-xs font-medium text-ink-muted
+      transition-colors hover:border-line-dark hover:bg-paper-muted hover:text-ink-soft;
+  }
+
+  .chat-panel-form {
+    @apply flex gap-2 border-t border-line/60 px-3 py-3;
+  }
+
+  .chat-input {
+    @apply min-w-0 flex-1 rounded-2xl border border-line/80 bg-paper px-3.5 py-2.5 text-sm text-ink
+      outline-none transition-all placeholder:text-ink-faint
+      focus:border-ink-faint/50 focus:ring-2 focus:ring-ink/[0.06];
+  }
+
+  .chat-send {
+    @apply shrink-0 rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-paper
+      transition-colors hover:bg-ink-soft disabled:opacity-50;
+  }
+
+  .chat-panel-footer {
+    @apply border-t border-line/40 px-4 py-2 text-center text-xs;
+  }
+
+  /* —— Cute cartoon characters —— */
+  .character-spot {
+    @apply pointer-events-none shrink-0 select-none;
+    filter: drop-shadow(0 4px 12px rgba(58, 58, 66, 0.08));
+  }
+
+  .character-spot svg {
+    overflow: visible;
+  }
+
+  .character-spot--float {
+    animation: character-float 3.2s ease-in-out infinite;
+  }
+
+  .character-spot--bob {
+    animation: character-bob 2.4s ease-in-out infinite;
+  }
+
+  .lb-character--wave {
+    animation: character-wave-arm 2.8s ease-in-out infinite;
+    transform-origin: 10px 14px;
+  }
+
+  .lb-character--bob {
+    animation: character-bob 2.6s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+
+  @keyframes character-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-7px);
+    }
+  }
+
+  @keyframes character-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes character-wave-arm {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    40%,
+    60% {
+      transform: rotate(-6deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .character-spot--float,
+    .character-spot--bob,
+    .lb-character--wave,
+    .lb-character--bob {
+      animation: none;
+    }
+  }
+
+  /* Train coach seat map (2+2 with centre aisle) */
+  .train-coach-scroll {
+    @apply max-h-[min(28rem,55vh)] overflow-auto;
+  }
+
+  .train-coach-grid {
+    @apply flex flex-col gap-2;
+  }
+
+  .train-coach-row {
+    @apply flex items-center gap-2;
+  }
+
+  .train-row-label {
+    @apply w-6 shrink-0 text-center text-[10px] font-semibold tabular-nums text-ink-faint;
+  }
+
+  .train-row-seats {
+    @apply flex flex-1 items-center justify-center gap-3;
+  }
+
+  .train-side {
+    @apply flex gap-1.5;
+  }
+
+  .train-aisle {
+    @apply h-9 w-8 shrink-0 rounded-md border border-dashed border-line/80 bg-paper-muted/50 sm:w-12;
+  }
+
+  .train-seat {
+    @apply flex h-9 min-w-[2.35rem] items-center justify-center rounded-lg border px-1 text-[10px] font-semibold tabular-nums transition-colors duration-200 sm:min-w-[2.6rem] sm:text-[11px];
+  }
+
+  .train-seat--available {
+    @apply cursor-pointer border-emerald-500/70 bg-white text-ink hover:border-emerald-600 hover:bg-emerald-50;
+  }
+
+  .train-seat--selected {
+    @apply cursor-pointer border-emerald-700 bg-emerald-500 text-white shadow-sm;
+  }
+
+  .train-seat--booked {
+    @apply cursor-not-allowed border-line bg-paper-muted text-ink-faint;
+  }
+
+  .train-platform-bar {
+    @apply rounded-xl bg-ink px-4 py-2.5 text-center text-xs font-medium text-paper;
+  }
+
+  /* Sleeper: upper / lower berths stacked per side */
+  .train-sleeper-grid {
+    @apply flex flex-col gap-3;
+  }
+
+  .train-sleeper-bay .train-row-seats {
+    @apply items-stretch gap-2;
+  }
+
+  .train-sleeper-side {
+    @apply flex flex-col gap-1;
+  }
+
+  .train-aisle--sleeper {
+    @apply min-h-[4.5rem] self-center;
+  }
+
+  .train-seat--available.train-seat--upper,
+  .train-berth-hint--upper {
+    @apply border-amber-500/60;
+  }
+
+  .train-berth-hint {
+    @apply inline-block h-3 w-5 rounded-sm border-2;
+  }
+
+  .train-berth-hint--upper {
+    @apply border-amber-500 bg-amber-50;
+  }
+
+  .train-berth-hint--lower {
+    @apply border-emerald-600/70 bg-emerald-50;
+  }
+}

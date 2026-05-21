@@ -1,0 +1,285 @@
+{
+  "info": {
+    "_postman_id": "train-ticket-booking-api",
+    "name": "Train Ticket Booking API",
+    "description": "Full API collection for the Train Ticket Booking Platform.\n\n## Setup\n1. Import this collection and the environment file\n2. Select **Train Ticket - Local** environment\n3. Run **Register** → copy OTP from server console → **Verify OTP** (saves token)\n4. Use protected endpoints with saved `{{token}}`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('email', pm.request.body ? JSON.parse(pm.request.body.raw).email : pm.environment.get('email'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"{{fullName}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.token) {",
+                  "    pm.environment.set('token', json.data.token);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/verify-otp"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.token) {",
+                  "    pm.environment.set('token', json.data.token);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trains",
+      "item": [
+        {
+          "name": "List Stations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trains/stations"
+          }
+        },
+        {
+          "name": "Search Trains",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/trains/search?source={{source}}&destination={{destination}}&date={{travelDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["trains", "search"],
+              "query": [
+                { "key": "source", "value": "{{source}}" },
+                { "key": "destination", "value": "{{destination}}" },
+                { "key": "date", "value": "{{travelDate}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Route Availability",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/trains/availability/{{routeId}}?date={{travelDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["trains", "availability", "{{routeId}}"],
+              "query": [{ "key": "date", "value": "{{travelDate}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pricing",
+      "item": [
+        {
+          "name": "Pricing Rules",
+          "request": { "method": "GET", "url": "{{baseUrl}}/pricing/rules" }
+        },
+        {
+          "name": "Price Quote",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/pricing/quote?routeId={{routeId}}&date={{travelDate}}&passengers=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["pricing", "quote"],
+              "query": [
+                { "key": "routeId", "value": "{{routeId}}" },
+                { "key": "date", "value": "{{travelDate}}" },
+                { "key": "passengers", "value": "1" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "item": [
+        {
+          "name": "Popular Routes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/recommendations/popular?limit=5"
+          }
+        },
+        {
+          "name": "Personalized (JWT)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/recommendations?date={{travelDate}}&limit=5"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const id = json.data?.booking?.id;",
+                  "  if (id) pm.environment.set('bookingId', id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routeId\": {{routeId}},\n  \"travelDate\": \"{{travelDate}}\",\n  \"passengers\": [\n    { \"name\": \"John Doe\", \"age\": 30, \"gender\": \"male\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/bookings"
+          }
+        },
+        {
+          "name": "My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/bookings/user"
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/bookings/{{bookingId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Waitlist",
+      "item": [
+        {
+          "name": "Waitlist Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/waitlist/status"
+          }
+        },
+        {
+          "name": "Join Waitlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routeId\": {{routeId}},\n  \"travelDate\": \"{{travelDate}}\",\n  \"passengers\": [\n    { \"name\": \"Jane Doe\", \"age\": 28, \"gender\": \"female\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/waitlist/join"
+          }
+        },
+        {
+          "name": "Leave Waitlist",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/waitlist/{{waitlistId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

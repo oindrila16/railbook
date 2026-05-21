@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Seat Availability — Demo</title>
+  <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    label { display: block; margin-top: 1rem; font-weight: 600; }
+    input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+    button { margin-top: 1rem; padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+    #status { margin-top: 1rem; padding: 12px; background: #f1f5f9; border-radius: 8px; }
+    #log { margin-top: 1rem; font-size: 13px; max-height: 320px; overflow-y: auto; background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; font-family: monospace; }
+    .full { color: #f87171; font-weight: bold; }
+    .ok { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <h1>Live seat availability</h1>
+  <p>Subscribe to real-time updates via Socket.IO. Open this page in two tabs and book/cancel in another client to see updates.</p>
+
+  <label>API URL <input id="apiUrl" value="http://localhost:3000" /></label>
+  <label>Route ID <input id="routeId" type="number" value="1" /></label>
+  <label>Travel date <input id="travelDate" type="date" /></label>
+
+  <button id="connectBtn">Connect &amp; Subscribe</button>
+  <button id="disconnectBtn" disabled>Disconnect</button>
+
+  <div id="status">Not connected</div>
+  <pre id="log"></pre>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    let socket = null;
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 7);
+    document.getElementById('travelDate').value = tomorrow.toISOString().slice(0, 10);
+
+    function log(msg, data) {
+      const line = `[${new Date().toLocaleTimeString()}] ${msg}` + (data ? '\n' + JSON.stringify(data, null, 2) : '');
+      logEl.textContent = line + '\n\n' + logEl.textContent;
+    }
+
+    function renderAvailability(data) {
+      if (!data?.availability) return 'No data';
+      const a = data.availability;
+      const cls = a.isFull ? 'full' : 'ok';
+      return `<span class="${cls}">${a.availableSeats} seats available</span> / ${a.totalSeats} total
+        (${a.occupancyPercent}% booked) · Price: ₹${data.pricing?.currentPrice} · Waitlist: ${a.waitlistCount}
+        ${data.reason ? ' · Reason: ' + data.reason : ''}`;
+    }
+
+    document.getElementById('connectBtn').onclick = () => {
+      const apiUrl = document.getElementById('apiUrl').value.replace(/\/$/, '');
+      const routeId = parseInt(document.getElementById('routeId').value, 10);
+      const travelDate = document.getElementById('travelDate').value;
+
+      socket = io(apiUrl, { transports: ['websocket', 'polling'] });
+
+      socket.on('connect', () => {
+        statusEl.innerHTML = 'Connected: ' + socket.id;
+        log('Connected', { id: socket.id });
+        socket.emit('subscribe:route', { routeId, travelDate }, (ack) => {
+          log('Subscribe ack', ack);
+        });
+      });
+
+      socket.on('seat:availability', (data) => {
+        statusEl.innerHTML = renderAvailability(data);
+        log('seat:availability', data);
+      });
+
+      socket.on('subscribed', (data) => log('subscribed', data));
+      socket.on('error', (err) => log('error', err));
+      socket.on('disconnect', () => {
+        statusEl.textContent = 'Disconnected';
+        log('Disconnected');
+      });
+
+      document.getElementById('connectBtn').disabled = true;
+      document.getElementById('disconnectBtn').disabled = false;
+    };
+
+    document.getElementById('disconnectBtn').onclick = () => {
+      if (socket) socket.disconnect();
+      document.getElementById('connectBtn').disabled = false;
+      document.getElementById('disconnectBtn').disabled = true;
+    };
+  </script>
+</body>
+</html>

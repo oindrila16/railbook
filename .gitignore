@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Environment (never commit real passwords / API keys)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Build output
+dist/
+dist-ssr/
+frontend/dist/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Cursor / local
+.cursor/
