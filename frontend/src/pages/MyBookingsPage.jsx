@@ -30,16 +30,18 @@ function StatusBadge({ status }) {
 export default function MyBookingsPage() {
   const location = useLocation();
   const [bookings, setBookings] = useState([]);
+  const [waitlist, setWaitlist] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(location.state?.message || '');
   const [cancellingId, setCancellingId] = useState(null);
 
   const load = () => {
-    setLoading(true);
-    bookingService
-      .getUserBookings()
-      .then((data) => setBookings(data.bookings || []))
+    Promise.all([bookingService.getUserBookings(), bookingService.getWaitlistStatus()])
+      .then(([bookings, queue]) => {
+        setBookings(bookings.bookings || []);
+        setWaitlist(queue.entries || []);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
@@ -55,6 +57,22 @@ export default function MyBookingsPage() {
     try {
       await bookingService.cancelBooking(id);
       setSuccess('Booking cancelled successfully.');
+      setLoading(true);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const handleLeaveWaitlist = async (id) => {
+    setCancellingId(`waitlist-${id}`);
+    setError('');
+    try {
+      await bookingService.leaveWaitlist(id);
+      setSuccess('Removed from waitlist.');
+      setLoading(true);
       load();
     } catch (err) {
       setError(err.message);
@@ -87,6 +105,27 @@ export default function MyBookingsPage() {
       </AnimatePresence>
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
+
+      {!loading && waitlist.length > 0 && (
+        <section className="content-stack mt-8" aria-label="Your waitlist entries">
+          <h2 className="heading-card">Waitlist</h2>
+          {waitlist.map((entry) => (
+            <div key={entry.id} className="card-surface p-6">
+              <p className="font-semibold">{entry.train.name} · {entry.route.source} → {entry.route.destination}</p>
+              <p className="mt-2 text-sm text-ink-muted">
+                {entry.travelDate} · {entry.fareClass} · {entry.passengerCount} passenger(s) · {entry.status}
+                {entry.status === 'waiting' ? ` · Position #${entry.position}` : ''}
+              </p>
+              {entry.status === 'waiting' && (
+                <button type="button" className="btn-secondary mt-4" disabled={cancellingId === `waitlist-${entry.id}`}
+                  onClick={() => handleLeaveWaitlist(entry.id)}>
+                  {cancellingId === `waitlist-${entry.id}` ? 'Leaving…' : 'Leave waitlist'}
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {loading ? (
         <LoadingSpinner />

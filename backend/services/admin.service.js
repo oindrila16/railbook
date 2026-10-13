@@ -2,6 +2,8 @@
  * Admin dashboard — stats, users, bookings, trains.
  */
 const pool = require('../config/database');
+const { calculateSeatQuotas } = require('../utils/seatQuotas');
+const { getTodayISO } = require('../utils/dates');
 const ApiError = require('../utils/ApiError');
 const userModel = require('../models/user.model');
 const bookingModel = require('../models/booking.model');
@@ -114,68 +116,57 @@ async function listTrains() {
 }
 
 async function updateTrain(trainId, { basePrice, isActive, totalSeats }) {
-  const [existing] = await pool.query('SELECT id FROM trains WHERE id = ?', [trainId]);
-  if (!existing.length) throw ApiError.notFound('Train not found');
-
-  const updates = [];
-  const params = [];
-
-  if (basePrice !== undefined) {
-    updates.push('base_price = ?');
-    params.push(Number(basePrice));
+  if (totalSeats !== undefined) calculateSeatQuotas(totalSeats);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    // Match booking's route-first lock order so reservations cannot race resizing.
+    await connection.query('SELECT id FROM routes WHERE train_id = ? ORDER BY id FOR UPDATE', [trainId]);
+    const [existing] = await connection.query('SELECT * FROM trains WHERE id = ? FOR UPDATE', [trainId]);
+    if (!existing.length) throw ApiError.notFound('Train not found');
+    const capacityChanged = totalSeats !== undefined && Number(totalSeats) !== Number(existing[0].total_seats);
+    if (capacityChanged) {
+      const [reservations] = await connection.query(
+        `SELECT b.id FROM bookings b JOIN routes r ON r.id = b.route_id
+         WHERE r.train_id = ? AND b.travel_date >= ? AND b.status IN ('confirmed', 'pending') LIMIT 1`,
+        [trainId, getTodayISO()]
+      );
+      const [waiting] = await connection.query(
+        `SELECT w.id FROM waitlist w JOIN routes r ON r.id = w.route_id
+         WHERE r.train_id = ? AND w.travel_date >= ? AND w.status = 'waiting' LIMIT 1`,
+        [trainId, getTodayISO()]
+      );
+      if (reservations.length || waiting.length) {
+        throw ApiError.conflict('Capacity cannot change while this train has current or future bookings or waiting passengers');
+      }
+    }
+    const updates = [], params = [];
+    if (basePrice !== undefined) { updates.push('base_price = ?'); params.push(Number(basePrice)); }
+    if (isActive !== undefined) { updates.push('is_active = ?'); params.push(isActive ? 1 : 0); }
+    if (totalSeats !== undefined) { updates.push('total_seats = ?'); params.push(Number(totalSeats)); }
+    if (!updates.length) throw ApiError.badRequest('No fields to update');
+    await connection.query(`UPDATE trains SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`, [...params, trainId]);
+    if (isActive !== undefined) {
+      await connection.query('UPDATE routes SET is_active = ?, updated_at = NOW() WHERE train_id = ?', [isActive ? 1 : 0, trainId]);
+    }
+    const fareSync = basePrice !== undefined
+      ? await routeFareModel.syncBasePricesForTrain(trainId, basePrice, connection) : null;
+    const quotaSync = capacityChanged
+      ? await routeFareModel.syncSeatQuotasForTrain(trainId, totalSeats, connection) : null;
+    const [rows] = await connection.query('SELECT * FROM trains WHERE id = ?', [trainId]);
+    await connection.commit();
+    const t = rows[0];
+    return {
+      id: t.id, number: t.train_number, name: t.name, totalSeats: t.total_seats,
+      basePrice: Number(t.base_price), fares: buildFarePreview(t.base_price),
+      trainClass: t.train_class, isActive: Boolean(t.is_active), fareSync, quotaSync,
+    };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
   }
-  if (isActive !== undefined) {
-    updates.push('is_active = ?');
-    params.push(isActive ? 1 : 0);
-  }
-  if (totalSeats !== undefined) {
-    updates.push('total_seats = ?');
-    params.push(Number(totalSeats));
-  }
-
-  if (!updates.length) {
-    throw ApiError.badRequest('No fields to update');
-  }
-
-  params.push(trainId);
-  await pool.query(`UPDATE trains SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`, params);
-
-  if (isActive === false) {
-    await pool.query('UPDATE routes SET is_active = 0, updated_at = NOW() WHERE train_id = ?', [
-      trainId,
-    ]);
-  } else if (isActive === true) {
-    await pool.query('UPDATE routes SET is_active = 1, updated_at = NOW() WHERE train_id = ?', [
-      trainId,
-    ]);
-  }
-
-  let fareSync = null;
-  let quotaSync = null;
-  if (basePrice !== undefined) {
-    fareSync = await routeFareModel.syncBasePricesForTrain(trainId, basePrice);
-  }
-  if (totalSeats !== undefined) {
-    quotaSync = await routeFareModel.syncSeatQuotasForTrain(trainId, totalSeats);
-  }
-
-  const [rows] = await pool.query(
-    'SELECT id, train_number, name, total_seats, base_price, train_class, is_active FROM trains WHERE id = ?',
-    [trainId]
-  );
-  const t = rows[0];
-  return {
-    id: t.id,
-    number: t.train_number,
-    name: t.name,
-    totalSeats: t.total_seats,
-    basePrice: Number(t.base_price),
-    fares: buildFarePreview(t.base_price),
-    trainClass: t.train_class,
-    isActive: Boolean(t.is_active),
-    fareSync,
-    quotaSync,
-  };
 }
 
 async function listRoutes() {

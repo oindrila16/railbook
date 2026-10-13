@@ -2,14 +2,14 @@
  * Per-route fare class pricing (Economy, Business, First).
  */
 const pool = require('../config/database');
+const { calculateSeatQuotas } = require('../utils/seatQuotas');
 const {
   FARE_CLASS_IDS,
   BASE_PRICE_MULTIPLIER,
-  SEAT_QUOTA_PERCENT,
 } = require('../config/fareClasses');
 
-async function findByRouteId(routeId) {
-  const [rows] = await pool.query(
+async function findByRouteId(routeId, connection = pool) {
+  const [rows] = await connection.query(
     `SELECT id, route_id, fare_class, base_price, seat_quota
      FROM route_fares
      WHERE route_id = ?
@@ -91,9 +91,9 @@ async function countBookedByClassForUpdate(connection, routeId, travelDate, fare
 /**
  * Sync route_fares.base_price for every route on a train (user-facing prices).
  */
-async function syncBasePricesForTrain(trainId, economyBasePrice) {
+async function syncBasePricesForTrain(trainId, economyBasePrice, connection = pool) {
   const base = Math.max(0, Number(economyBasePrice));
-  const [routes] = await pool.query(
+  const [routes] = await connection.query(
     'SELECT id FROM routes WHERE train_id = ?',
     [trainId]
   );
@@ -105,7 +105,7 @@ async function syncBasePricesForTrain(trainId, economyBasePrice) {
   for (const route of routes) {
     for (const fareClass of FARE_CLASS_IDS) {
       const price = Math.round(base * BASE_PRICE_MULTIPLIER[fareClass]);
-      const [result] = await pool.query(
+      const [result] = await connection.query(
         `UPDATE route_fares
          SET base_price = ?
          WHERE route_id = ? AND fare_class = ?`,
@@ -141,32 +141,19 @@ async function syncBasePricesForRoute(routeId, economyBasePrice) {
 }
 
 /** Recalculate seat_quota for every route on a train after total_seats changes. */
-async function syncSeatQuotasForTrain(trainId, totalSeats) {
-  const total = Math.max(1, Number(totalSeats));
-  const [routes] = await pool.query('SELECT id FROM routes WHERE train_id = ?', [trainId]);
-  if (!routes.length) return { routesUpdated: 0, faresUpdated: 0 };
-
+async function syncSeatQuotasForTrain(trainId, totalSeats, connection = pool) {
+  const quotas = calculateSeatQuotas(totalSeats);
+  const [routes] = await connection.query('SELECT id FROM routes WHERE train_id = ?', [trainId]);
   let faresUpdated = 0;
-
   for (const route of routes) {
-    let allocated = 0;
-
-    for (let index = 0; index < FARE_CLASS_IDS.length; index += 1) {
-      const fareClass = FARE_CLASS_IDS[index];
-      const isLast = index === FARE_CLASS_IDS.length - 1;
-      const seatQuota = isLast
-        ? Math.max(1, total - allocated)
-        : Math.max(1, Math.floor(total * SEAT_QUOTA_PERCENT[fareClass]));
-      allocated += seatQuota;
-
-      const [result] = await pool.query(
-        `UPDATE route_fares SET seat_quota = ? WHERE route_id = ? AND fare_class = ?`,
+    for (const { fareClass, seatQuota } of quotas) {
+      const [result] = await connection.query(
+        'UPDATE route_fares SET seat_quota = ? WHERE route_id = ? AND fare_class = ?',
         [seatQuota, route.id, fareClass]
       );
       faresUpdated += result.affectedRows || 0;
     }
   }
-
   return { routesUpdated: routes.length, faresUpdated };
 }
 

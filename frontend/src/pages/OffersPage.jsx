@@ -16,7 +16,6 @@ export default function OffersPage() {
 
   useEffect(() => {
     const nextDay = getTomorrowISO();
-    setTravelDate(nextDay);
     pricingService
       .getFareMatrix({ days: 1, fromDate: nextDay })
       .then((data) => {

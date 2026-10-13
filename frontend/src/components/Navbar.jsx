@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authState';
 import NavLinks from './NavLinks';
 import { StickerTrain } from './icons/StickerIcons';
 import { ease, tapScale, springSoft } from '../utils/motion';

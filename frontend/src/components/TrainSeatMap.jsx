@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { motion } from 'framer-motion';
 import * as trainService from '../services/trainService';
 import { formatBDT } from '../utils/currency';
@@ -168,35 +169,10 @@ export default function TrainSeatMap({
   selectedSeats,
   onSelectionChange,
 }) {
-  const [mapData, setMapData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [activeCoachId, setActiveCoachId] = useState('A');
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError('');
-
-    trainService
-      .getSeatMap({ routeId, date: travelDate, fareClass })
-      .then((data) => {
-        if (!cancelled) {
-          setMapData(data);
-          setActiveCoachId(data.coaches?.[0]?.id || 'A');
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message || 'Could not load seat map');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId, travelDate, fareClass]);
+  const loader = useCallback(() => trainService.getSeatMap({ routeId, date: travelDate, fareClass }),
+    [routeId, travelDate, fareClass]);
+  const { data: mapData, loading, error } = useAsyncResource(loader);
 
   const labelById = useMemo(() => {
     const m = new Map();

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authState';
 import { formatBDT } from '../utils/currency';
 import { fareClassLabel } from '../constants/fareClasses';
 import { listItem, tapScale } from '../utils/motion';
@@ -17,9 +17,9 @@ export default function TrainCard({ train, searchParams, liveData }) {
   const fare = pickFare(train, selectedClass);
   const liveFare = liveData?.fares?.find((f) => f.class === selectedClass);
   const availability =
-    fare?.availability ?? liveFare?.availability ?? liveData?.availability ?? train.availability;
+    liveFare?.availability ?? liveData?.availability ?? fare?.availability ?? train.availability;
   const pricing =
-    fare?.pricing ?? liveFare?.pricing ?? liveData?.pricing ?? train.pricing;
+    liveFare?.pricing ?? liveData?.pricing ?? fare?.pricing ?? train.pricing;
 
   const price = pricing?.currentPrice ?? 0;
   const available = availability?.availableSeats ?? 0;
@@ -28,7 +28,7 @@ export default function TrainCard({ train, searchParams, liveData }) {
   const classLabel = fare?.label ?? fareClassLabel(selectedClass);
 
   const bookLink = `/book/${train.routeId}?date=${searchParams.date}&passengers=${searchParams.passengers}&class=${selectedClass}`;
-  const fares = train.fares || [];
+  const fares = liveData?.fares || train.fares || [];
 
   return (
     <motion.article
@@ -97,8 +97,6 @@ export default function TrainCard({ train, searchParams, liveData }) {
             <Link to="/admin" className="btn-secondary w-full sm:min-w-[9.5rem]">
               Manage in admin
             </Link>
-          ) : isFull ? (
-            <span className="btn-secondary cursor-default opacity-60">Waitlist only</span>
           ) : (
             <motion.div {...tapScale} className="w-full sm:w-auto">
               <Link
@@ -106,7 +104,7 @@ export default function TrainCard({ train, searchParams, liveData }) {
                 state={{ train, searchParams, fareClass: selectedClass }}
                 className="btn-primary w-full sm:min-w-[9.5rem]"
               >
-                Book now
+                {isFull ? 'Join waitlist' : 'Book now'}
               </Link>
             </motion.div>
           )}

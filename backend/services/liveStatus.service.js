@@ -3,6 +3,7 @@
  * (Demo — not connected to real GPS/track data.)
  */
 const pool = require('../config/database');
+const { getTodayISO } = require('../utils/dates');
 const ApiError = require('../utils/ApiError');
 
 function parseTimeOnDate(timeStr, dateStr) {
@@ -24,8 +25,7 @@ function mockDelayMinutes(routeId, travelDate) {
   return (seed % 23) - 7;
 }
 
-function computeLegStatus(route, travelDate) {
-  const now = new Date();
+function computeLegStatus(route, travelDate, now = new Date()) {
   const dep = parseTimeOnDate(route.departure_time, travelDate);
   let arr = parseTimeOnDate(route.arrival_time, travelDate);
   if (arr <= dep) {
@@ -36,35 +36,6 @@ function computeLegStatus(route, travelDate) {
   const effectiveDep = new Date(dep.getTime() + delayMin * 60 * 1000);
   const journeyMs = arr.getTime() - dep.getTime();
   const effectiveArr = new Date(effectiveDep.getTime() + journeyMs);
-
-  const travelDay = new Date(travelDate + 'T12:00:00');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  travelDay.setHours(0, 0, 0, 0);
-
-  if (travelDay > today) {
-    return {
-      status: 'scheduled',
-      statusLabel: 'Scheduled',
-      delayMinutes: 0,
-      progressPercent: 0,
-      message: 'Train has not departed yet',
-      atStation: route.source_name,
-      nextStation: route.source_name,
-    };
-  }
-
-  if (travelDay < today) {
-    return {
-      status: 'completed',
-      statusLabel: 'Journey completed',
-      delayMinutes: delayMin,
-      progressPercent: 100,
-      message: 'Train has arrived at destination',
-      atStation: route.destination_name,
-      nextStation: null,
-    };
-  }
 
   if (now < effectiveDep) {
     return {
@@ -137,7 +108,7 @@ async function listActiveTrains() {
 }
 
 async function getLiveStatus({ trainNumber, travelDate }) {
-  const date = travelDate || new Date().toISOString().slice(0, 10);
+  const date = travelDate || getTodayISO();
   const routes = await getRoutesForTrain(trainNumber, date);
 
   if (!routes.length) {
@@ -174,7 +145,7 @@ async function getLiveStatus({ trainNumber, travelDate }) {
 }
 
 async function listLiveOverview(travelDate) {
-  const date = travelDate || new Date().toISOString().slice(0, 10);
+  const date = travelDate || getTodayISO();
   const trains = await listActiveTrains();
   const overview = [];
 
@@ -194,4 +165,4 @@ async function listLiveOverview(travelDate) {
   return { travelDate: date, updatedAt: new Date().toISOString(), trains: overview };
 }
 
-module.exports = { getLiveStatus, listLiveOverview, listActiveTrains };
+module.exports = { getLiveStatus, listLiveOverview, listActiveTrains, computeLegStatus };

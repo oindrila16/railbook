@@ -13,8 +13,8 @@ async function findByUserRouteDate(connection, userId, routeId, travelDate) {
   return rows[0] || null;
 }
 
-async function findById(waitlistId) {
-  const [rows] = await pool.query('SELECT * FROM waitlist WHERE id = ?', [waitlistId]);
+async function findById(waitlistId, connection = pool) {
+  const [rows] = await connection.query('SELECT * FROM waitlist WHERE id = ?', [waitlistId]);
   return rows[0] || null;
 }
 
@@ -53,14 +53,15 @@ async function create(connection, data) {
   return result.insertId;
 }
 
-async function getNextWaitingForUpdate(connection, routeId, travelDate) {
+async function getNextWaitingForUpdate(connection, routeId, travelDate, fareClass) {
   const [rows] = await connection.query(
     `SELECT * FROM waitlist
      WHERE route_id = ? AND travel_date = ? AND status = 'waiting'
+       AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(passengers_json, '$.fareClass')), 'economy') = ?
      ORDER BY position ASC
      LIMIT 1
      FOR UPDATE`,
-    [routeId, travelDate]
+    [routeId, travelDate, fareClass]
   );
   return rows[0] || null;
 }

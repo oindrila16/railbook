@@ -30,9 +30,12 @@ function errorHandler(err, req, res, next) {
     console.error(err);
   }
 
+  if (process.env.NODE_ENV === 'production' && statusCode >= 500 && !err.isOperational) {
+    message = 'Internal server error';
+    errors = null;
+  }
   const payload = { success: false, message };
   if (errors) payload.errors = errors;
-  else if (err.errors) payload.errors = err.errors;
 
   res.status(statusCode).json(payload);
 }

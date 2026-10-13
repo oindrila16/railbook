@@ -27,8 +27,8 @@ async function create(connection, data) {
   return result.insertId;
 }
 
-async function findById(bookingId) {
-  const [rows] = await pool.query(
+async function findById(bookingId, connection = pool) {
+  const [rows] = await connection.query(
     `SELECT b.*,
        t.train_number, t.name AS train_name, t.train_class,
        src.code AS source_code, src.name AS source_name,

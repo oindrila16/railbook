@@ -7,12 +7,36 @@ const emailService = require('./email.service');
 const emailTemplates = require('../templates/email');
 
 async function sendSms(phone, message) {
-  if (config.sms.provider === 'mock' || !config.sms.twilio.accountSid) {
+  if (config.sms.provider === 'mock') {
+    if (config.env === 'production') return { success: false, error: 'Mock SMS is disabled in production' };
     console.log(`[SMS MOCK] To: ${phone}\n${message}`);
-    return { mocked: true };
+    return { success: true, mocked: true };
   }
-  console.log(`[SMS] Twilio send to ${phone}: ${message}`);
-  return { mocked: false };
+  const { accountSid, authToken, phoneNumber } = config.sms.twilio;
+  if (config.sms.provider !== 'twilio' || !accountSid || !authToken || !phoneNumber) {
+    return { success: false, error: 'SMS provider is not configured' };
+  }
+  try {
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ To: phone, From: phoneNumber, Body: message }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok || ['failed', 'undelivered', 'canceled'].includes(data.status)) {
+      return { success: false, error: 'SMS delivery failed' };
+    }
+    return { success: true, mocked: false, messageId: data.sid };
+  } catch {
+    return { success: false, error: 'SMS provider is unavailable' };
+  }
 }
 
 /** Send email only if user has an email address */
@@ -24,26 +48,18 @@ async function sendEmailToUser(user, templateFn, data, templateName) {
 async function sendOtpNotification({ email, phone, otpCode }) {
   const expiryMinutes = config.otp.expiryMinutes;
 
-  const tasks = [];
-
-  if (email) {
-    tasks.push(
-      emailService.sendTemplateEmail(
-        email,
-        emailTemplates.otp,
-        { otpCode, expiryMinutes },
-        'otp'
-      )
-    );
-  }
-
-  if (phone) {
-    const message = `Your ${emailConfig.appName} verification code is ${otpCode}. Valid for ${expiryMinutes} minutes.`;
-    tasks.push(sendSms(phone, message));
-  }
-
-  const results = await Promise.all(tasks);
-  return { email: results[0], sms: results[1] };
+  const [emailResult, smsResult] = await Promise.all([
+    email ? emailService.sendTemplateEmail(
+      email, emailTemplates.otp, { otpCode, expiryMinutes }, 'otp'
+    ) : Promise.resolve({ skipped: true }),
+    phone ? sendSms(phone, `Your ${emailConfig.appName} verification code is ${otpCode}. Valid for ${expiryMinutes} minutes.`)
+      : Promise.resolve({ skipped: true }),
+  ]);
+  return {
+    email: emailResult,
+    sms: smsResult,
+    delivered: emailResult.success === true || smsResult.success === true,
+  };
 }
 
 function extractTrainRouteFromBooking(booking) {
@@ -74,7 +90,7 @@ async function sendBookingConfirmation(user, booking, tickets) {
     const ref = booking.booking_reference || booking.bookingReference;
     await sendSms(
       user.phone,
-      `Booking confirmed! Ref: ${ref}. Seats: ${seats}. Amount: ₹${booking.total_amount || booking.totalAmount}.`
+      `Booking confirmed! Ref: ${ref}. Seats: ${seats}. Amount: ৳${booking.total_amount || booking.totalAmount}.`
     );
   }
 

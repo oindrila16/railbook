@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useAsyncResource } from '../hooks/useAsyncResource';
+import LoadingSpinner from '../components/LoadingSpinner';
+import * as trainService from '../services/trainService';
 import BackLink from '../components/BackLink';
 import { motion } from 'framer-motion';
 import ErrorAlert from '../components/ErrorAlert';
@@ -20,19 +23,13 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const train = location.state?.train;
   const date = searchParams.get('date') || '';
-  const passengerCount = Math.max(1, parseInt(searchParams.get('passengers') || '1', 10));
+  const passengerCount = Math.min(10, Math.max(1, parseInt(searchParams.get('passengers') || '1', 10) || 1));
   const fareClass =
     searchParams.get('class') ||
     location.state?.fareClass ||
     location.state?.searchParams?.fareClass ||
     DEFAULT_FARE_CLASS;
-
-  const selectedFare =
-    train?.fares?.find((f) => f.class === fareClass) ||
-    train?.fares?.[0] ||
-    null;
 
   const [passengers, setPassengers] = useState(
     Array.from({ length: passengerCount }, () => ({
@@ -44,23 +41,27 @@ export default function BookingPage() {
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [livePricing, setLivePricing] = useState(null);
 
   const rid = parseInt(routeId, 10);
 
-  useEffect(() => {
-    if (!Number.isFinite(rid) || rid < 1 || !date) return;
-
-    pricingService
-      .getPriceQuote({
-        routeId: rid,
-        travelDate: date,
-        passengers: passengers.length,
-        fareClass,
-      })
-      .then((quote) => setLivePricing(quote?.pricing ?? null))
-      .catch(() => setLivePricing(null));
+  const routeLoader = useCallback(() => {
+    if (!Number.isFinite(rid) || rid < 1 || !date) {
+      return Promise.reject(new Error('Choose a valid route and travel date before booking.'));
+    }
+    return trainService.getTrainForBooking({ routeId: rid, date, fareClass });
+  }, [rid, date, fareClass]);
+  const { data: train, loading: routeLoading, error: routeError } = useAsyncResource(routeLoader);
+  const priceLoader = useCallback(() => {
+    if (!Number.isFinite(rid) || rid < 1 || !date) return Promise.resolve(null);
+    return pricingService.getPriceQuote({ routeId: rid, travelDate: date, passengers: passengers.length, fareClass });
   }, [rid, date, fareClass, passengers.length]);
+  const { data: quote } = useAsyncResource(priceLoader);
+  const livePricing = quote?.pricing;
+
+  const selectedFare =
+    train?.fares?.find((f) => f.class === fareClass) ||
+    train?.fares?.[0] ||
+    null;
 
   const pricePerSeat =
     livePricing?.currentPrice ??
@@ -69,13 +70,16 @@ export default function BookingPage() {
     train?.pricing?.currentPrice ??
     0;
   const total = livePricing?.totalAmount ?? pricePerSeat * passengers.length;
+  const isWaitlist = (selectedFare?.availability?.availableSeats ?? train?.availability?.availableSeats ?? Infinity) < passengers.length;
+
+  if (routeLoading) return <LoadingSpinner label="Loading train details…" />;
 
   if (!train) {
     return (
       <div className="page-container page-section-sm">
         <EmptyStateCard
           title="Train not found"
-          message="Train details are missing. Head back to search and pick a train again."
+          message={routeError || 'Please search for another train.'}
           mood="curious"
         >
           <Link to="/search" className="btn-primary mt-2 inline-flex">
@@ -178,7 +182,7 @@ export default function BookingPage() {
         <BackLink to={backUrl}>Back to results</BackLink>
 
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="heading-section">Confirm booking</h1>
+          <h1 className="heading-section">{isWaitlist ? 'Join waitlist' : 'Confirm booking'}</h1>
           <CharacterSpot className="hidden sm:block" float delay={0.12}>
             <TicketMascot size={64} mood="happy" />
           </CharacterSpot>
@@ -205,6 +209,8 @@ export default function BookingPage() {
             </div>
           )}
         </div>
+
+        {isWaitlist && <p className="card-surface p-6 text-sm text-ink-muted">There are not enough seats for your group. You can join the waitlist; your ticket is confirmed only when seats become available. The fare may change before confirmation.</p>}
 
         <TrainSeatMap
           routeId={parseInt(routeId, 10)}
@@ -285,7 +291,7 @@ export default function BookingPage() {
             disabled={loading}
             className="btn-primary w-full py-4"
           >
-            {loading ? 'Processing…' : 'Confirm booking'}
+            {loading ? 'Processing…' : isWaitlist ? 'Join waitlist' : 'Confirm booking'}
           </button>
         </form>
       </motion.div>

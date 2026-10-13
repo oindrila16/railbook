@@ -1,17 +1,12 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getToken, getStoredUser, setAuth, clearAuth, isAuthenticated } from '../utils/auth';
+import { useState, useCallback } from 'react';
+import { getStoredUser, setAuth, clearAuth, isAuthenticated } from '../utils/auth';
 import * as authService from '../services/authService';
 
-const AuthContext = createContext(null);
+import { AuthContext } from './authState';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(getStoredUser());
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setUser(getStoredUser());
-    setLoading(false);
-  }, []);
+  const [user, setUser] = useState(getStoredUser);
+  const loading = false;
 
   const login = useCallback(async (credentials) => {
     const result = await authService.login(credentials);
@@ -44,10 +39,4 @@ export function AuthProvider({ children }) {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
 }

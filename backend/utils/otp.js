@@ -6,7 +6,7 @@ const config = require('../config');
 
 /** Generate a cryptographically random 6-digit OTP */
 function generateOtp() {
-  return crypto.randomInt(100000, 999999).toString();
+  return crypto.randomInt(100000, 1000000).toString();
 }
 
 /** Compute expiry datetime for new OTP records */

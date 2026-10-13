@@ -35,8 +35,6 @@ export default function AdminDashboardPage() {
   const [routeForm, setRouteForm] = useState({});
 
   const load = () => {
-    setLoading(true);
-    setError('');
     Promise.all([
       adminService.getStats(),
       adminService.getBookings(15),
@@ -68,6 +66,7 @@ export default function AdminDashboardPage() {
           ? `Train prices synced to ${updated.fareSync.routesUpdated} route(s) on the user site.`
           : 'Train updated.'
       );
+      setLoading(true);
       load();
     } catch (err) {
       setError(err.message);
@@ -94,6 +93,7 @@ export default function AdminDashboardPage() {
       });
       setEditRouteId(null);
       setSuccess('Route updated on the user site (times, price, visibility).');
+      setLoading(true);
       load();
     } catch (err) {
       setError(err.message);

@@ -13,6 +13,7 @@ const emailService = require('./services/email.service');
 const { initSocket } = require('./socket');
 
 const app = express();
+if (process.env.TRUST_PROXY === 'loopback') app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
 
 // Socket.IO — real-time seat availability
@@ -61,7 +62,8 @@ server.on('error', (err) => {
   throw err;
 });
 
-server.listen(PORT, async () => {
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
+server.listen(PORT, HOST, async () => {
   console.log(`Server listening on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
   await emailService.verifyConnection();
 });

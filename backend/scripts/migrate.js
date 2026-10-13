@@ -77,6 +77,10 @@ async function migrate() {
 }
 
 migrate().catch((err) => {
-  console.error('Migration failed:', err.message);
+  const details = err.errors?.map((error) => `${error.code}: ${error.address}:${error.port}`).join(', ');
+  console.error('Migration failed:', details || err.message || err.code);
+  if (err.code === 'ECONNREFUSED' || err.errors?.some((error) => error.code === 'ECONNREFUSED')) {
+    console.error('Start MySQL and check DB_HOST/DB_PORT in backend/.env, then run npm run migrate again.');
+  }
   process.exit(1);
 });

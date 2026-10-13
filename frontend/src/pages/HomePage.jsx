@@ -47,36 +47,20 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [stationsNotice, setStationsNotice] = useState('');
 
-  const loadTopRoutes = useCallback(async () => {
+  const loadTopRoutes = useCallback(() => {
     const nextDay = getTomorrowISO();
-    setTravelDate(nextDay);
-    setLoading(true);
-
-    try {
-      const s = await trainService.getStations();
-      setStations(s.length > 0 ? s : FALLBACK_STATIONS);
+    return Promise.all([
+      trainService.getStations(),
+      pricingService.getFareMatrix({ days: 1, fromDate: nextDay }).catch(() => null),
+    ]).then(([stations, matrix]) => {
+      setStations(stations.length > 0 ? stations : FALLBACK_STATIONS);
       setTravelDate(nextDay);
-
-      if (!trainService.stationsLoadedFromApi()) {
-        setStationsNotice(
-          'Could not reach the server — showing default stations. Start the backend (npm run dev in backend/) and run npm run seed if lists stay empty.'
-        );
-      } else {
-        setStationsNotice('');
-      }
-
-      try {
-        const matrix = await pricingService.getFareMatrix({ days: 1, fromDate: nextDay });
-        setTopRoutes(pickTopRoutesForDate(matrix.routes || [], nextDay));
-      } catch {
-        setTopRoutes([]);
-      }
-    } catch {
+      setStationsNotice(trainService.stationsLoadedFromApi() ? '' : 'We could not load stations right now. Please try again later.');
+      setTopRoutes(pickTopRoutesForDate(matrix?.routes || [], nextDay));
+    }).catch(() => {
       setStations(FALLBACK_STATIONS);
       setTopRoutes([]);
-    } finally {
-      setLoading(false);
-    }
+    }).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -88,6 +72,7 @@ export default function HomePage() {
       if (document.visibilityState === 'visible') {
         const current = getTomorrowISO();
         if (current !== travelDate) {
+          setLoading(true);
           loadTopRoutes();
         }
       }

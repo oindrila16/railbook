@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import BackLink from '../components/BackLink';
 import { motion } from 'framer-motion';
 import TrainCard from '../components/TrainCard';
@@ -24,36 +25,16 @@ export default function SearchPage() {
   const fareClass = searchParams.get('class') || 'economy';
 
   const [stations, setStations] = useState(FALLBACK_STATIONS);
-  const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
+  const [dismissedError, setDismissedError] = useState('');
   const hasQuery = Boolean(source && destination && date);
-
   useEffect(() => {
     trainService.getStations().then((list) => setStations(list.length > 0 ? list : FALLBACK_STATIONS));
   }, []);
-
-  useEffect(() => {
-    if (!hasQuery) {
-      setResults(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setResults(null);
-
-    trainService
-      .searchTrains({ source, destination, date, fareClass })
-      .then(setResults)
-      .catch((err) => {
-        setError(err.message);
-        setResults(null);
-      })
-      .finally(() => setLoading(false));
-  }, [source, destination, date, fareClass, hasQuery]);
+  const loader = useCallback(() => hasQuery
+    ? trainService.searchTrains({ source, destination, date, fareClass })
+    : Promise.resolve(null), [source, destination, date, fareClass, hasQuery]);
+  const { data: results, loading, error: requestError } = useAsyncResource(loader);
+  const error = requestError === dismissedError ? '' : requestError;
 
   const searchQuery = { source, destination, date, passengers, fareClass };
   const trains = results?.trains ?? [];
@@ -74,11 +55,11 @@ export default function SearchPage() {
       </motion.div>
 
       <div className="mt-10 sm:mt-12">
-        <SearchCard stations={stations} compact />
+        <SearchCard key={searchParams.toString()} stations={stations} compact />
       </div>
 
       <div className="mt-10 sm:mt-12">
-        <ErrorAlert message={error} onDismiss={() => setError('')} />
+        <ErrorAlert message={error} onDismiss={() => setDismissedError(requestError)} />
       </div>
 
       {!hasQuery ? (

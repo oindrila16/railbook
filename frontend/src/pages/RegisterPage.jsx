@@ -18,9 +18,10 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
     try {
-      await authService.register(form);
-      setPendingEmail(form.email);
-      navigate('/verify-otp', { state: { email: form.email } });
+      const result = await authService.register(form);
+      const email = result.email || form.email;
+      setPendingEmail(email, result.verificationMode);
+      navigate('/verify-otp', { state: { email, verificationMode: result.verificationMode } });
     } catch (err) {
       setError(err.message);
     } finally {

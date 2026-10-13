@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { fadeUp, tapScale, springSoft } from '../utils/motion';
@@ -25,31 +25,13 @@ export default function SearchCard({ stations = [], compact = false, stationsLoa
   const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState('search');
-  const [form, setForm] = useState({
-    source: '',
-    destination: '',
-    date: getTomorrowISO(),
-    passengers: 1,
-    fareClass: DEFAULT_FARE_CLASS,
-  });
-
-  useEffect(() => {
-    if (!compact) return;
-    const source = searchParams.get('source');
-    const destination = searchParams.get('destination');
-    const date = searchParams.get('date');
-    const fareClass = searchParams.get('class');
-    const passengers = searchParams.get('passengers');
-    if (!source && !destination && !date) return;
-    setForm((f) => ({
-      ...f,
-      ...(source ? { source } : {}),
-      ...(destination ? { destination } : {}),
-      ...(date ? { date } : {}),
-      ...(fareClass ? { fareClass } : {}),
-      ...(passengers ? { passengers: Number(passengers) || 1 } : {}),
-    }));
-  }, [compact, searchParams.toString()]);
+  const [form, setForm] = useState(() => ({
+    source: compact ? searchParams.get('source') || '' : '',
+    destination: compact ? searchParams.get('destination') || '' : '',
+    date: (compact && searchParams.get('date')) || getTomorrowISO(),
+    passengers: compact ? Math.min(10, Math.max(1, Number(searchParams.get('passengers')) || 1)) : 1,
+    fareClass: (compact && searchParams.get('class')) || DEFAULT_FARE_CLASS,
+  }));
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

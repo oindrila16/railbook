@@ -3,6 +3,15 @@
  * Database, JWT, email, and SMS settings will be consumed by services.
  */
 require('dotenv').config();
+const { randomBytes } = require('crypto');
+
+const configuredSecret = process.env.JWT_SECRET?.trim();
+if (process.env.NODE_ENV === 'production' &&
+    (!configuredSecret || configuredSecret === 'change-me-in-production' || configuredSecret.length < 32)) {
+  throw new Error('Set JWT_SECRET to a random secret of at least 32 characters in production');
+}
+const jwtSecret = configuredSecret && configuredSecret !== 'change-me-in-production'
+  ? configuredSecret : randomBytes(32).toString('hex');
 
 module.exports = {
   env: process.env.NODE_ENV || 'development',
@@ -17,7 +26,7 @@ module.exports = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'change-me-in-production',
+    secret: jwtSecret,
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 

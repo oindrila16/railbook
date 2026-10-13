@@ -76,3 +76,21 @@ export async function getPopularRoutes(limit = 6) {
     return [];
   }
 }
+
+/** Reload route details from the URL, including on direct navigation. */
+export async function getTrainForBooking({ routeId, date, fareClass }) {
+  const { data } = await api.get(`/trains/availability/${routeId}`, { params: { date, class: fareClass } });
+  const snapshot = data.data;
+  if (!snapshot?.found) throw new Error('This train route is unavailable. Please choose another train.');
+  return {
+    routeId: snapshot.routeId,
+    train: snapshot.train,
+    source: { code: snapshot.route.source, name: snapshot.route.sourceName },
+    destination: { code: snapshot.route.destination, name: snapshot.route.destinationName },
+    schedule: { departureTime: snapshot.route.departureTime, arrivalTime: snapshot.route.arrivalTime },
+    fares: snapshot.fares,
+    availability: snapshot.availability,
+    pricing: snapshot.pricing,
+    fareClass: snapshot.fareClass,
+  };
+}

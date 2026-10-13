@@ -8,6 +8,10 @@ const validate = require('../middlewares/validate');
 const asyncHandler = require('../utils/asyncHandler');
 
 const router = express.Router();
+const rateLimit = require('../middlewares/rateLimit');
+const registerLimit = rateLimit({ max: 5 });
+const verifyLimit = rateLimit({ max: 10 });
+const loginLimit = rateLimit({ max: 10 });
 
 /** Require at least one of email or phone */
 const requireContact = (req, res, next) => {
@@ -42,6 +46,7 @@ const passwordRule = body('password')
 
 router.post(
   '/register',
+  registerLimit,
   requireContact,
   [
     emailRule,
@@ -58,6 +63,7 @@ router.post(
 
 router.post(
   '/verify-otp',
+  verifyLimit,
   requireContact,
   [
     emailRule,
@@ -75,6 +81,7 @@ router.post(
 
 router.post(
   '/login',
+  loginLimit,
   requireContact,
   [emailRule, phoneRule, body('password').notEmpty().withMessage('Password is required')],
   validate,

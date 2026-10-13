@@ -50,6 +50,7 @@ function formatWaitlistEntry(row, extras = {}) {
     travelDate: row.travel_date,
     position: row.position,
     passengerCount: row.passenger_count,
+    fareClass: parsePassengers(row.passengers_json).fareClass,
     status: row.status,
     bookingId: row.booking_id,
     bookingReference: row.booking_reference || null,
@@ -74,14 +75,15 @@ function formatWaitlistEntry(row, extras = {}) {
  * Promote the next waiting entry inside an open transaction.
  * Returns null if queue empty or insufficient seats.
  */
-async function promoteNextInQueue(connection, routeId, travelDate) {
+async function promoteNextInQueue(connection, routeId, travelDate, queueClass = 'economy') {
   const route = await routeModel.findByIdForUpdate(connection, routeId);
   if (!route) return null;
 
   const waitlistEntry = await waitlistModel.getNextWaitingForUpdate(
     connection,
     routeId,
-    travelDate
+    travelDate,
+    queueClass
   );
   if (!waitlistEntry) return null;
 
@@ -98,7 +100,7 @@ async function promoteNextInQueue(connection, routeId, travelDate) {
   }
 
   const normalizedClass = normalizeFareClass(fareClass) || 'economy';
-  const routeFares = await routeFareModel.findByRouteId(routeId);
+  const routeFares = await routeFareModel.findByRouteId(routeId, connection);
   const routeFare = routeFares.find((f) => f.fare_class === normalizedClass);
   const seatRange = routeFares.length
     ? getSeatRangeForClass(routeFares, normalizedClass)
@@ -205,61 +207,56 @@ async function promoteNextInQueue(connection, routeId, travelDate) {
 /**
  * Process FIFO queue after cancellation — promotes as many users as seats allow.
  */
-async function processQueueAfterCancellation(routeId, travelDate) {
-  const connection = await pool.getConnection();
+async function promoteQueue(connection, routeId, travelDate, fareClass = 'economy') {
   const promotions = [];
+  for (;;) {
+    const result = await promoteNextInQueue(connection, routeId, travelDate, fareClass);
+    if (!result) break;
+    if (result.promoted) promotions.push(result);
+  }
+  return promotions;
+}
 
+async function notifyPromotions(promotions, travelDate) {
+  for (const promo of promotions) {
+    try {
+      const booking = await bookingModel.findById(promo.bookingId);
+      const [userRows] = await pool.query('SELECT email, phone FROM users WHERE id = ?', [promo.userId]);
+      if (userRows[0]) await notificationService.sendWaitlistConfirmation(
+        userRows[0], { position: promo.previousPosition, travel_date: travelDate }, booking
+      );
+    } catch (err) {
+      console.warn('[Waitlist] Notification failed:', err.message);
+    }
+  }
+}
+
+function summarizePromotions(promotions) {
+  return { promotedCount: promotions.length, promotions: promotions.map((p) => ({
+    waitlistId: p.waitlistId, userId: p.userId, bookingId: p.bookingId,
+    bookingReference: p.bookingReference, seats: p.seats, totalAmount: p.totalAmount,
+  })) };
+}
+
+async function processQueueAfterCancellation(routeId, travelDate, fareClass = 'economy') {
+  const connection = await pool.getConnection();
+  let released = false;
+  let promotions;
   try {
     await connection.beginTransaction();
-
-    let safety = 50;
-    while (safety > 0) {
-      safety -= 1;
-      const result = await promoteNextInQueue(connection, routeId, travelDate);
-      if (!result) break;
-      if (result.promoted) promotions.push(result);
-    }
-
+    promotions = await promoteQueue(connection, routeId, travelDate, fareClass);
     await connection.commit();
-
-    for (const promo of promotions) {
-      const booking = await bookingModel.findById(promo.bookingId);
-      const [userRows] = await pool.query(
-        'SELECT email, phone FROM users WHERE id = ?',
-        [promo.userId]
-      );
-      const contact = userRows[0];
-      if (contact) {
-        await notificationService.sendWaitlistConfirmation(
-          contact,
-          { position: promo.previousPosition, travel_date: travelDate },
-          booking
-        );
-      }
-    }
-
-    if (promotions.length > 0) {
-      emitSeatUpdate(routeId, travelDate, 'waitlist_promoted');
-    }
-
-    return {
-      promotedCount: promotions.length,
-      promotions: promotions.map((p) => ({
-        waitlistId: p.waitlistId,
-        userId: p.userId,
-        bookingId: p.bookingId,
-        bookingReference: p.bookingReference,
-        seats: p.seats,
-        totalAmount: p.totalAmount,
-      })),
-    };
-  } catch (err) {
-    await connection.rollback();
-    console.error('Waitlist queue processing failed:', err.message);
-    return { promotedCount: 0, promotions: [], error: err.message };
-  } finally {
     connection.release();
+    released = true;
+  } catch (err) {
+    if (!released) await connection.rollback();
+    throw err;
+  } finally {
+    if (!released) connection.release();
   }
+  await notifyPromotions(promotions, travelDate);
+  if (promotions.length) emitSeatUpdate(routeId, travelDate, 'waitlist_promoted');
+  return summarizePromotions(promotions);
 }
 
 async function addToWaitlist(connection, { userId, routeId, travelDate, passengers, fareClass }) {
@@ -301,6 +298,7 @@ async function joinWaitlist(userId, { routeId, travelDate, passengers, fareClass
   }
 
   const connection = await pool.getConnection();
+  let released = false;
 
   try {
     await connection.beginTransaction();
@@ -311,7 +309,7 @@ async function joinWaitlist(userId, { routeId, travelDate, passengers, fareClass
     }
 
     const classForWaitlist = normalizedClass || 'economy';
-    const routeFares = await routeFareModel.findByRouteId(routeId);
+    const routeFares = await routeFareModel.findByRouteId(routeId, connection);
     const seatRange = routeFares.length
       ? getSeatRangeForClass(routeFares, classForWaitlist)
       : { quota: route.total_seats };
@@ -337,9 +335,11 @@ async function joinWaitlist(userId, { routeId, travelDate, passengers, fareClass
       fareClass: normalizedClass || 'economy',
     });
 
-    const totalInQueue = await waitlistModel.countWaiting(connection, routeId, travelDate);
+    const totalInQueue = await waitlistModel.countWaiting(routeId, travelDate, connection);
 
     await connection.commit();
+    connection.release();
+    released = true;
 
     const [userRows] = await pool.query(
       'SELECT email, phone FROM users WHERE id = ?',
@@ -372,10 +372,10 @@ async function joinWaitlist(userId, { routeId, travelDate, passengers, fareClass
       },
     };
   } catch (err) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     throw err;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }
 
@@ -428,10 +428,14 @@ async function getWaitlistStatus(userId, { routeId, travelDate } = {}) {
  */
 async function cancelWaitlistEntry(userId, waitlistId) {
   const connection = await pool.getConnection();
+  let released = false;
 
   try {
     await connection.beginTransaction();
 
+    const initialEntry = await waitlistModel.findById(waitlistId, connection);
+    if (!initialEntry) throw ApiError.notFound('Waitlist entry not found');
+    await routeModel.findByIdForUpdate(connection, initialEntry.route_id);
     const entry = await waitlistModel.findByIdForUpdate(connection, waitlistId);
     if (!entry) throw ApiError.notFound('Waitlist entry not found');
     if (entry.user_id !== userId) {
@@ -446,8 +450,14 @@ async function cancelWaitlistEntry(userId, waitlistId) {
     await waitlistModel.updateStatus(connection, waitlistId, 'cancelled');
     await waitlistModel.rebalancePositionsAfter(connection, routeId, travelDate, position);
 
+    const { fareClass } = parsePassengers(entry.passengers_json);
+    const promotions = await promoteQueue(connection, routeId, travelDate, fareClass);
     await connection.commit();
+    connection.release();
+    released = true;
 
+    await notifyPromotions(promotions, travelDate);
+    emitSeatUpdate(routeId, travelDate, 'waitlist_left');
     return {
       message: 'Removed from waitlist successfully',
       waitlistId,
@@ -455,14 +465,17 @@ async function cancelWaitlistEntry(userId, waitlistId) {
       travelDate,
     };
   } catch (err) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     throw err;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }
 
 module.exports = {
+  promoteQueue,
+  notifyPromotions,
+  summarizePromotions,
   processQueueAfterCancellation,
   promoteNextInQueue,
   addToWaitlist,

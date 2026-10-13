@@ -25,8 +25,9 @@ export function getStoredUser() {
   }
 }
 
-export function setPendingEmail(email) {
+export function setPendingEmail(email, verificationMode = 'delivery') {
   sessionStorage.setItem(PENDING_EMAIL_KEY, email);
+  sessionStorage.setItem('railbook_pending_verification_mode', verificationMode);
 }
 
 export function getPendingEmail() {
@@ -35,8 +36,13 @@ export function getPendingEmail() {
 
 export function clearPendingEmail() {
   sessionStorage.removeItem(PENDING_EMAIL_KEY);
+  sessionStorage.removeItem('railbook_pending_verification_mode');
 }
 
 export function isAuthenticated() {
   return Boolean(getToken());
+}
+
+export function getPendingVerificationMode() {
+  return sessionStorage.getItem('railbook_pending_verification_mode') || 'delivery';
 }

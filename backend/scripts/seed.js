@@ -1,16 +1,18 @@
 /**
  * Seed Bangladesh Railway stations, trains, and routes.
- * Safe to re-run: clears route-related data and re-inserts.
+ * Development demo data: clears route-related data before re-inserting.
  *
  * Usage: npm run seed
  */
 require('dotenv').config();
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Demo seeding is disabled in production');
+}
 const bcrypt = require('bcrypt');
 const pool = require('../config/database');
+const { calculateSeatQuotas } = require('../utils/seatQuotas');
 const userModel = require('../models/user.model');
 const {
-  FARE_CLASS_IDS,
-  SEAT_QUOTA_PERCENT,
   BASE_PRICE_MULTIPLIER,
 } = require('../config/fareClasses');
 
@@ -189,14 +191,7 @@ async function seed() {
     for (const route of routeRows) {
       const totalSeats = Number(route.total_seats);
       const economyBase = Number(route.base_price);
-      let allocated = 0;
-
-      FARE_CLASS_IDS.forEach((fareClass, index) => {
-        const isLast = index === FARE_CLASS_IDS.length - 1;
-        const seatQuota = isLast
-          ? Math.max(1, totalSeats - allocated)
-          : Math.max(1, Math.floor(totalSeats * SEAT_QUOTA_PERCENT[fareClass]));
-        allocated += seatQuota;
+      calculateSeatQuotas(totalSeats).forEach(({ fareClass, seatQuota }) => {
         const basePrice = Math.round(economyBase * BASE_PRICE_MULTIPLIER[fareClass]);
 
         fareInserts.push({

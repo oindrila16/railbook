@@ -18,7 +18,6 @@ export default function ChatWidget() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [initialized, setInitialized] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -30,32 +29,19 @@ export default function ChatWidget() {
     });
   }, []);
 
-  const bootstrap = useCallback(async () => {
-    if (initialized) return;
-    try {
-      const data = await chatService.fetchWelcome();
+  useEffect(() => {
+    let active = true;
+    chatService.fetchWelcome().then((data) => {
+      if (!active) return;
       setMessages([{ role: 'assistant', text: data.reply, time: formatTime() }]);
       setSuggestions(data.suggestions || []);
-      setInitialized(true);
-    } catch {
-      setMessages([
-        {
-          role: 'assistant',
-          text: 'Hi! I can help with bookings, PNR, prices, and cancellations. Ask me anything.',
-          time: formatTime(),
-        },
-      ]);
-      setSuggestions([
-        { label: 'How do I book?', path: null },
-        { label: 'Help page', path: '/help' },
-      ]);
-      setInitialized(true);
-    }
-  }, [initialized]);
-
-  useEffect(() => {
-    bootstrap();
-  }, [bootstrap]);
+    }).catch(() => {
+      if (!active) return;
+      setMessages([{ role: 'assistant', text: 'Hi! I can help with bookings, PNR, prices, and cancellations. Ask me anything.', time: formatTime() }]);
+      setSuggestions([{ label: 'How do I book?', path: null }, { label: 'Help page', path: '/help' }]);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (open) {

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as authService from '../services/authService';
-import { useAuth } from '../context/AuthContext';
-import { getPendingEmail, clearPendingEmail } from '../utils/auth';
+import { useAuth } from '../context/authState';
+import { getPendingEmail, getPendingVerificationMode, clearPendingEmail } from '../utils/auth';
 import AuthCard from '../components/AuthCard';
 import ErrorAlert from '../components/ErrorAlert';
 import { tapScale } from '../utils/motion';
@@ -13,6 +13,7 @@ export default function VerifyOtpPage() {
   const location = useLocation();
   const { completeVerification } = useAuth();
   const email = location.state?.email || getPendingEmail() || '';
+  const isConsoleVerification = (location.state?.verificationMode || getPendingVerificationMode()) === 'console';
 
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
@@ -79,13 +80,13 @@ export default function VerifyOtpPage() {
       title="Verify your email"
       subtitle={
         <>
-          Enter the 6-digit code sent to <strong className="text-ink">{email}</strong>
+          {isConsoleVerification ? 'Enter the 6-digit code for ' : 'Enter the 6-digit code sent to '}<strong className="text-ink">{email}</strong>
         </>
       }
     >
-      <p className="mt-3 text-xs text-ink-faint">
-        Dev: check backend console for [EMAIL MOCK] OTP
-      </p>
+      {isConsoleVerification && <p className="mt-3 text-xs text-ink-faint">
+        This is a local demo. Find your verification code in the terminal running the server.
+      </p>}
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
 

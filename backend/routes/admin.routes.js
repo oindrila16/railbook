@@ -24,7 +24,7 @@ router.patch(
     param('id').isInt({ min: 1 }),
     body('basePrice').optional().isFloat({ min: 0 }),
     body('isActive').optional().isBoolean(),
-    body('totalSeats').optional().isInt({ min: 1 }),
+    body('totalSeats').optional().isInt({ min: 3 }).withMessage('At least 3 seats are required'),
   ],
   validate,
   asyncHandler(adminController.patchTrain)

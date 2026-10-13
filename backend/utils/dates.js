@@ -3,8 +3,12 @@
  */
 
 function parseISODateLocal(iso) {
-  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d, 12, 0, 0, 0);
+  const value = String(iso);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(NaN);
+  const [y, m, d] = value.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12, 0, 0, 0);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+    ? date : new Date(NaN);
 }
 
 function formatDateISO(date) {

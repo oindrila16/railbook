@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authState';
 import AuthCard from '../components/AuthCard';
 import ErrorAlert from '../components/ErrorAlert';
 import { tapScale } from '../utils/motion';

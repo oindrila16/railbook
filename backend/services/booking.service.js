@@ -6,7 +6,6 @@ const ApiError = require('../utils/ApiError');
 const routeModel = require('../models/route.model');
 const bookingModel = require('../models/booking.model');
 const ticketModel = require('../models/ticket.model');
-const userModel = require('../models/user.model');
 const { resolveSeatAssignment } = require('../utils/seatAllocator');
 const { getSeatRangeForClass } = require('../utils/seatRange');
 const { generateBookingReference } = require('../utils/bookingReference');
@@ -88,7 +87,7 @@ async function createConfirmedBooking(connection, {
   const totalSeats = route.total_seats;
   const fareClass = normalizeFareClass(fareClassInput) || 'economy';
 
-  const routeFares = await routeFareModel.findByRouteId(routeId);
+  const routeFares = await routeFareModel.findByRouteId(routeId, connection);
   const routeFare = routeFares.find((f) => f.fare_class === fareClass);
   const basePrice = routeFare ? Number(routeFare.base_price) : Number(route.base_price);
   const seatRange = routeFares.length
@@ -190,6 +189,7 @@ async function createBooking(userId, { routeId, travelDate, passengers, fareClas
   }
 
   const connection = await pool.getConnection();
+  let released = false;
 
   try {
     await connection.beginTransaction();
@@ -222,6 +222,8 @@ async function createBooking(userId, { routeId, travelDate, passengers, fareClas
         fareClass: normalizedClass || 'economy',
       });
       await connection.commit();
+      connection.release();
+      released = true;
 
       const user = await pool.query(
         'SELECT email, phone FROM users WHERE id = ?',
@@ -255,6 +257,8 @@ async function createBooking(userId, { routeId, travelDate, passengers, fareClas
     }
 
     await connection.commit();
+    connection.release();
+    released = true;
 
     const booking = await bookingModel.findById(result.bookingId);
     const tickets = await ticketModel.findByBookingId(result.bookingId);
@@ -280,13 +284,13 @@ async function createBooking(userId, { routeId, travelDate, passengers, fareClas
       booking: formatBooking(booking, tickets),
     };
   } catch (err) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
       throw ApiError.conflict('Seat conflict detected. Please try again.');
     }
     throw err;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }
 
@@ -318,10 +322,14 @@ async function getUserBookings(userId) {
  */
 async function cancelBooking(userId, bookingId) {
   const connection = await pool.getConnection();
+  let released = false;
 
   try {
     await connection.beginTransaction();
 
+    const initialBooking = await bookingModel.findById(bookingId, connection);
+    if (!initialBooking) throw ApiError.notFound('Booking not found');
+    await routeModel.findByIdForUpdate(connection, initialBooking.route_id);
     const booking = await bookingModel.findByIdForUpdate(connection, bookingId);
     if (!booking) {
       throw ApiError.notFound('Booking not found');
@@ -336,10 +344,8 @@ async function cancelBooking(userId, bookingId) {
       throw ApiError.badRequest('Waitlisted bookings cannot be cancelled via this endpoint');
     }
 
-    const travel = new Date(booking.travel_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    travel.setHours(0, 0, 0, 0);
+    const travel = parseISODateLocal(booking.travel_date);
+    const today = parseISODateLocal(getTodayISO());
     if (travel < today) {
       throw ApiError.badRequest('Cannot cancel a booking for a past travel date');
     }
@@ -348,8 +354,13 @@ async function cancelBooking(userId, bookingId) {
     await bookingModel.updateStatus(connection, bookingId, 'cancelled');
 
     const { route_id: routeId, travel_date: travelDate } = booking;
+    const promotions = await waitlistService.promoteQueue(
+      connection, routeId, travelDate, booking.fare_class || 'economy'
+    );
 
     await connection.commit();
+    connection.release();
+    released = true;
 
     const updated = await bookingModel.findById(bookingId);
     const userRows = await pool.query(
@@ -358,13 +369,15 @@ async function cancelBooking(userId, bookingId) {
     );
     const contact = userRows[0][0];
     if (contact) {
-      await notificationService.sendCancellationNotification(contact, updated);
+      try {
+        await notificationService.sendCancellationNotification(contact, updated);
+      } catch (err) {
+        console.warn('[Booking] Cancellation notification failed:', err.message);
+      }
     }
 
-    const waitlistPromotion = await waitlistService.processQueueAfterCancellation(
-      routeId,
-      travelDate
-    );
+    await waitlistService.notifyPromotions(promotions, travelDate);
+    const waitlistPromotion = waitlistService.summarizePromotions(promotions);
 
     emitSeatUpdate(routeId, travelDate, 'booking_cancelled');
 
@@ -374,10 +387,10 @@ async function cancelBooking(userId, bookingId) {
       waitlistPromotion,
     };
   } catch (err) {
-    await connection.rollback();
+    if (!released) await connection.rollback();
     throw err;
   } finally {
-    connection.release();
+    if (!released) connection.release();
   }
 }
 

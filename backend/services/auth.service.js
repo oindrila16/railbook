@@ -33,7 +33,7 @@ function buildAuthResponse(user) {
   };
 }
 
-async function createAndSendOtp({ userId, email, phone, purpose }) {
+async function createAndSendOtp({ userId, email, phone, purpose, pendingPasswordHash }) {
   await otpModel.invalidatePrevious({ email, phone, purpose });
 
   const otpCode = generateOtp();
@@ -46,11 +46,15 @@ async function createAndSendOtp({ userId, email, phone, purpose }) {
     otpCode,
     purpose,
     expiresAt,
+    pendingPasswordHash,
   });
 
-  await notificationService.sendOtpNotification({ email, phone, otpCode });
+  const delivery = await notificationService.sendOtpNotification({ email, phone, otpCode });
+  if (!delivery.delivered) {
+    throw new ApiError(503, 'Could not deliver the verification code. Please try registering again later.');
+  }
 
-  return otpCode;
+  return { mode: delivery.email?.mocked || delivery.sms?.mocked ? 'console' : 'delivery' };
 }
 
 /**
@@ -69,11 +73,19 @@ async function register({ email, phone, password, fullName }) {
     throw ApiError.conflict('An account with this email or phone already exists');
   }
 
+  if (existing && ((normalizedEmail && normalizedEmail !== existing.email) ||
+      (normalizedPhone && normalizedPhone !== existing.phone))) {
+    throw ApiError.conflict('Use the original contact details to verify this account');
+  }
+
+  if (existing && !await bcrypt.compare(password, existing.password_hash)) {
+    throw ApiError.conflict('An unverified account already exists. Use the original password to request a new code.');
+  }
+
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
   let user;
   if (existing) {
-    await userModel.updatePassword(existing.id, passwordHash);
     user = await userModel.findById(existing.id);
   } else {
     user = await userModel.create({
@@ -84,15 +96,19 @@ async function register({ email, phone, password, fullName }) {
     });
   }
 
-  await createAndSendOtp({
+  const verification = await createAndSendOtp({
     userId: user.id,
-    email: normalizedEmail,
-    phone: normalizedPhone,
+    email: user.email,
+    phone: user.phone,
+    pendingPasswordHash: passwordHash,
     purpose: 'registration',
   });
 
   return {
-    message: 'Registration successful. Please verify OTP sent to your email/phone.',
+    message: verification.mode === 'console'
+      ? 'Registration successful. Read the verification code in the local server terminal.'
+      : 'Registration successful. Please verify the code sent to your email/phone.',
+    verificationMode: verification.mode,
     userId: user.id,
     email: user.email,
     phone: user.phone,
@@ -107,24 +123,10 @@ async function verifyOtp({ email, phone, otpCode }) {
   const normalizedEmail = email?.toLowerCase().trim() || null;
   const normalizedPhone = phone?.trim() || null;
 
-  const otpRecord = await otpModel.findValidOtp({
-    email: normalizedEmail,
-    phone: normalizedPhone,
-    otpCode,
-    purpose: 'registration',
+  const user = await otpModel.verifyRegistration({
+    email: normalizedEmail, phone: normalizedPhone, otpCode,
   });
-
-  if (!otpRecord) {
-    throw ApiError.badRequest('Invalid or expired OTP');
-  }
-
-  const user = await userModel.findById(otpRecord.user_id);
-  if (!user) {
-    throw ApiError.notFound('User not found');
-  }
-
-  await otpModel.markUsed(otpRecord.id);
-  await userModel.markVerified(user.id);
+  if (!user) throw ApiError.badRequest('Invalid, expired, or exhausted OTP');
 
   const verifiedUser = await userModel.findById(user.id);
   return {

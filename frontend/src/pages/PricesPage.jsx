@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useAsyncResource } from '../hooks/useAsyncResource';
 import { motion } from 'framer-motion';
 import FareMatrix from '../components/FareMatrix';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -9,28 +10,15 @@ import { getTomorrowISO } from '../utils/dates';
 import { fadeUpTight } from '../utils/motion';
 
 export default function PricesPage() {
-  const defaultFrom = getTomorrowISO();
+  const [defaultFrom] = useState(getTomorrowISO);
 
   const [days, setDays] = useState(7);
-  const [matrix, setMatrix] = useState(null);
   const [selectedDate, setSelectedDate] = useState(defaultFrom);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    setLoading(true);
-    setError('');
-    pricingService
-      .getFareMatrix({ days, fromDate: defaultFrom })
-      .then((data) => {
-        setMatrix(data);
-        if (data.dates?.length && !data.dates.includes(selectedDate)) {
-          setSelectedDate(data.dates[0]);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [days, defaultFrom]);
+  const [dismissedError, setDismissedError] = useState('');
+  const loader = useCallback(() => pricingService.getFareMatrix({ days, fromDate: defaultFrom }), [days, defaultFrom]);
+  const { data: matrix, loading, error: requestError } = useAsyncResource(loader);
+  const error = requestError === dismissedError ? '' : requestError;
+  const displayedDate = matrix?.dates?.includes(selectedDate) ? selectedDate : matrix?.dates?.[0] || selectedDate;
 
   return (
     <div className="page-container page-section">
@@ -64,7 +52,7 @@ export default function PricesPage() {
       </div>
 
       <div className="mt-8">
-        <ErrorAlert message={error} onDismiss={() => setError('')} />
+        <ErrorAlert message={error} onDismiss={() => setDismissedError(requestError)} />
       </div>
 
       {loading ? (
@@ -73,7 +61,7 @@ export default function PricesPage() {
         <div className="mt-6">
           <FareMatrix
             matrix={matrix}
-            selectedDate={selectedDate}
+            selectedDate={displayedDate}
             onDateChange={setSelectedDate}
           />
         </div>

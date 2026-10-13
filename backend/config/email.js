@@ -16,5 +16,5 @@ module.exports = {
   appUrl: process.env.APP_URL || 'http://localhost:3000',
   supportEmail: process.env.SUPPORT_EMAIL || 'support@trainbooking.com',
   /** Log emails to console when SMTP is not configured */
-  mockInDevelopment: process.env.EMAIL_MOCK !== 'false',
+  mockInDevelopment: process.env.NODE_ENV !== 'production' && process.env.EMAIL_MOCK !== 'false',
 };

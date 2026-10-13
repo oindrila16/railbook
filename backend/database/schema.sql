@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS otp_verifications (
   purpose         ENUM('registration', 'login', 'password_reset') NOT NULL DEFAULT 'registration',
   expires_at      DATETIME        NOT NULL,
   is_used         TINYINT(1)      NOT NULL DEFAULT 0,
+  attempts        TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  pending_password_hash VARCHAR(255) NULL,
   created_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
@@ -95,7 +97,7 @@ CREATE TABLE IF NOT EXISTS trains (
   KEY idx_trains_active (is_active),
   KEY idx_trains_class (train_class),
 
-  CONSTRAINT chk_trains_seats CHECK (total_seats > 0),
+  CONSTRAINT chk_trains_seats CHECK (total_seats >= 3),
   CONSTRAINT chk_trains_price CHECK (base_price >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -220,7 +222,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   updated_at        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
-  UNIQUE KEY uk_ticket_seat_trip (route_id, travel_date, seat_number),
+  active_seat_number VARCHAR(10) GENERATED ALWAYS AS
+    (CASE WHEN status = 'active' THEN seat_number ELSE NULL END) STORED,
+  UNIQUE KEY uk_ticket_seat_trip (route_id, travel_date, active_seat_number),
   KEY idx_tickets_booking (booking_id),
   KEY idx_tickets_route_date (route_id, travel_date),
   KEY idx_tickets_status (status),
@@ -256,7 +260,9 @@ CREATE TABLE IF NOT EXISTS waitlist (
   updated_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
-  UNIQUE KEY uk_waitlist_user_trip (user_id, route_id, travel_date),
+  waiting_marker TINYINT GENERATED ALWAYS AS
+    (CASE WHEN status = 'waiting' THEN 1 ELSE NULL END) STORED,
+  UNIQUE KEY uk_waitlist_user_trip (user_id, route_id, travel_date, waiting_marker),
   KEY idx_waitlist_route_date (route_id, travel_date),
   KEY idx_waitlist_queue (route_id, travel_date, status, position),
   KEY idx_waitlist_user (user_id),

@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authState';
 import Navbar from './Navbar';
 import TrainBackground from './TrainBackground';
 import Footer from './Footer';

@@ -19,3 +19,13 @@ export async function cancelBooking(bookingId) {
   const { data } = await api.delete(`/bookings/${bookingId}`);
   return data.data;
 }
+
+export async function getWaitlistStatus() {
+  const { data } = await api.get('/waitlist/status');
+  return data.data;
+}
+
+export async function leaveWaitlist(id) {
+  const { data } = await api.delete(`/waitlist/${id}`);
+  return data.data;
+}

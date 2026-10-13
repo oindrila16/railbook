@@ -2,6 +2,7 @@
  * Waitlist routes — FIFO queue with auto-promotion on booking cancellation.
  */
 const express = require('express');
+const { parseISODateLocal, getTodayISO } = require('../utils/dates');
 const { body, query, param } = require('express-validator');
 const waitlistController = require('../controllers/waitlist.controller');
 const { authenticate } = require('../middlewares/auth');
@@ -34,13 +35,12 @@ router.post(
     body('routeId').isInt({ min: 1 }).withMessage('Valid routeId is required'),
     body('travelDate')
       .trim()
+      .matches(/^\d{4}-\d{2}-\d{2}$/)
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage('travelDate must be YYYY-MM-DD')
       .custom((value) => {
-        const travel = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        travel.setHours(0, 0, 0, 0);
+        const travel = parseISODateLocal(value);
+        const today = parseISODateLocal(getTodayISO());
         if (travel < today) throw new Error('Travel date cannot be in the past');
         return true;
       }),

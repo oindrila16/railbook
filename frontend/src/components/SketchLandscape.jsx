@@ -1,10 +1,8 @@
+import { TREES, GRASS, DOTS } from './landscape/landscapeData';
 import { TRACK_PATHS, TRAINS } from '../data/trainTracks';
 import TrackRails from './landscape/TrackRails';
 import AnimatedTrain from './landscape/AnimatedTrain';
 import {
-  TREES,
-  GRASS,
-  DOTS,
   GrassTuft,
   Dot,
   MountainRanges,

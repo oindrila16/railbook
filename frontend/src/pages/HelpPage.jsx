@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/authState';
 import { fadeUp } from '../utils/motion';
 import { IconArrowRight } from '../components/icons/Icons';
 import CharacterSpot from '../components/characters/CharacterSpot';

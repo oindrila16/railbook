@@ -1,7 +1,7 @@
 /**
  * Subscribe to real-time seat availability for multiple routes via Socket.IO.
  */
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 
 function getSocketUrl() {
@@ -11,24 +11,15 @@ function getSocketUrl() {
 }
 
 export function useSeatAvailability(routeIds = [], travelDate, fareClass = 'economy') {
-  const [liveByRoute, setLiveByRoute] = useState({});
+  const [liveState, setLiveState] = useState({ key: '', routes: {} });
   const [connected, setConnected] = useState(false);
   const socketRef = useRef(null);
   const idsKey = routeIds.join(',');
-
-  const mergeUpdate = useCallback((data) => {
-    if (!data?.routeId) return;
-    setLiveByRoute((prev) => ({
-      ...prev,
-      [data.routeId]: data,
-    }));
-  }, []);
+  const subscriptionKey = `${idsKey}:${travelDate}:${fareClass}`;
 
   useEffect(() => {
-    if (!travelDate || routeIds.length === 0) {
-      setLiveByRoute({});
-      return undefined;
-    }
+    const ids = idsKey ? idsKey.split(',').map(Number) : [];
+    if (!travelDate || ids.length === 0) return undefined;
 
     const socket = io(getSocketUrl(), {
       transports: ['websocket', 'polling'],
@@ -38,23 +29,29 @@ export function useSeatAvailability(routeIds = [], travelDate, fareClass = 'econ
 
     socket.on('connect', () => {
       setConnected(true);
-      routeIds.forEach((routeId) => {
+      ids.forEach((routeId) => {
         socket.emit('subscribe:route', { routeId, travelDate, fareClass });
       });
     });
 
     socket.on('disconnect', () => setConnected(false));
-    socket.on('seat:availability', mergeUpdate);
+    socket.on('seat:availability', (data) => {
+      if (!ids.includes(Number(data?.routeId)) || data.travelDate !== travelDate || data.fareClass !== fareClass) return;
+      setLiveState((prev) => ({
+        key: subscriptionKey,
+        routes: { ...(prev.key === subscriptionKey ? prev.routes : {}), [data.routeId]: data },
+      }));
+    });
 
     return () => {
-      routeIds.forEach((routeId) => {
+      ids.forEach((routeId) => {
         socket.emit('unsubscribe:route', { routeId, travelDate, fareClass });
       });
       socket.disconnect();
       socketRef.current = null;
       setConnected(false);
     };
-  }, [idsKey, travelDate, fareClass, mergeUpdate]);
+  }, [idsKey, travelDate, fareClass, subscriptionKey]);
 
-  return { liveByRoute, connected };
+  return { liveByRoute: liveState.key === subscriptionKey ? liveState.routes : {}, connected };
 }
