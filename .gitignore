@@ -26,3 +26,7 @@ Thumbs.db
 
 # Cursor / local
 .cursor/
+
+# Local review notes
+/FIXES.md
+/RECHECK.md

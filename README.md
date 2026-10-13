@@ -207,4 +207,4 @@ postman/       API collection and environment examples
 scripts/       Local setup helpers
 ```
 
-For public hosting, see [DEPLOYMENT.md](DEPLOYMENT.md). The review notes are in [FIXES.md](FIXES.md) and [RECHECK.md](RECHECK.md).
+For public hosting, see [DEPLOYMENT.md](DEPLOYMENT.md).
